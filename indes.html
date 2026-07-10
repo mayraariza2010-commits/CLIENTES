@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Clientes con Firebase Cloud Firestore</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --gray-50: #f8fafc;
+            --gray-100: #f1f5f9;
+            --gray-200: #e2e8f0;
+            --gray-700: #374151;
+            --gray-800: #1e293b;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background-color: var(--gray-50);
+            color: var(--gray-800);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        header .title-area { text-align: left; }
+        h1 { margin: 0 0 5px 0; color: var(--gray-800); font-size: 1.8rem; }
+        .subtitle { color: #64748b; margin: 0; font-size: 0.95rem; }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 25px;
+        }
+
+        @media (min-width: 768px) {
+            .grid { grid-template-columns: 1fr 2fr; }
+        }
+
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--gray-200);
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 0;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--gray-100);
+        }
+
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-size: 0.9rem; font-weight: 600; margin-bottom: 6px; }
+
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+        input:focus { outline: none; border-color: var(--primary); }
+
+        .btn {
+            padding: 11px 20px;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            border: none;
+            transition: background 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-w-100 { width: 100%; }
+        .btn-primary { background-color: var(--primary); color: white; }
+        .btn-primary:hover { background-color: var(--primary-hover); }
+        .btn-warning { background-color: var(--warning); color: white; }
+        .btn-dark { background-color: var(--gray-800); color: white; }
+        .btn-dark:hover { background-color: #0f172a; }
+        
+        .search-box { margin-bottom: 20px; }
+        .table-container { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; text-align: left; }
+        th, td { padding: 12px 15px; border-bottom: 1px solid var(--gray-200); font-size: 0.95rem; }
+        th { background-color: var(--gray-100); font-weight: 600; }
+
+        .actions { display: flex; gap: 8px; }
+        .btn-sm { padding: 5px 10px; font-size: 0.85rem; border-radius: 4px; cursor: pointer; border: 1px solid transparent; }
+        .btn-edit { border-color: var(--primary); color: var(--primary); background: transparent; }
+        .btn-edit:hover { background: var(--primary); color: white; }
+        .btn-delete { border-color: var(--danger); color: var(--danger); background: transparent; }
+        .btn-delete:hover { background: var(--danger); color: white; }
+
+        .badge { display: inline-block; padding: 3px 7px; font-size: 0.75rem; font-weight: bold; border-radius: 12px; }
+        .badge-delete { background-color: #fee2e2; color: #ef4444; }
+        .badge-create { background-color: #d1fae5; color: #10b981; }
+        .badge-edit { background-color: #fef3c7; color: #d97706; }
+
+        /* VENTANA MODAL (Historial Emergente) */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active { opacity: 1; pointer-events: auto; }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 750px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            transform: translateY(-20px);
+            transition: transform 0.3s ease;
+        }
+
+        .modal-overlay.active .modal-content { transform: translateY(0); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--gray-100); padding-bottom: 15px; margin-bottom: 20px; }
+        .modal-title { font-size: 1.4rem; font-weight: bold; margin: 0; color: var(--gray-800); }
+        
+        .close-button { background: none; border: none; font-size: 1.5rem; color: #64748b; cursor: pointer; padding: 5px; }
+        .close-button:hover { color: var(--danger); }
+
+        .counter-badge {
+            background-color: var(--danger);
+            color: white;
+            border-radius: 20px;
+            padding: 2px 8px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin-left: 5px;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #64748b;
+            padding: 20px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div class="title-area">
+            <h1>Gestión de Clientes Activos (Firebase)</h1>
+            <p class="subtitle">Base de datos en la nube Firestore con historial inmutable integrado</p>
+        </div>
+        <button class="btn btn-dark" onclick="abrirHistorial()">
+            📋 Ver Historial <span class="counter-badge" id="countHistorialBtn">0</span>
+        </button>
+    </header>
+
+    <div class="grid">
+        <div>
+            <div class="card">
+                <div class="card-title" id="formTitle">Registrar Nuevo Cliente</div>
+                <form id="clientForm">
+                    <input type="hidden" id="editId" value="">
+                    
+                    <div class="form-group">
+                        <label for="nombre">Nombre Completo</label>
+                        <input type="text" id="nombre" required placeholder="Ej. Juan Pérez">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="telefono">Teléfono / Celular</label>
+                        <input type="tel" id="telefono" required placeholder="Ej. +34 600 000 000">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="email">Correo Electrónico</label>
+                        <input type="email" id="email" required placeholder="Ej. juan@correo.com">
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary btn-w-100" id="btnSubmit">Guardar Cliente</button>
+                    <button type="button" class="btn btn-w-100" id="btnCancelar" style="display:none; margin-top:10px; background:#e2e8f0;" onclick="cancelarEdicion()">Cancelar Edición</button>
+                </form>
+            </div>
+        </div>
+
+        <div>
+            <div class="card">
+                <div class="card-title">Base de Datos General Activa (<span id="countGeneral">0</span>)</div>
+                <div class="search-box">
+                    <input type="text" id="buscarInput" placeholder="🔍 Buscar por nombre, teléfono o email...">
+                </div>
+                
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Teléfono</th>
+                                <th>Email</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaClientes">
+                            <tr><td colspan="4" class="loading">Conectando con Firestore...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modalHistorial" onclick="cerrarHistorialExterno(event)">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 class="modal-title">📋 Historial de Acciones del Sistema</h2>
+            <button class="close-button" onclick="cerrarHistorial()">✕</button>
+        </div>
+        <p style="font-size: 0.9rem; color: #64748b; margin-top: 0; margin-bottom: 15px;">
+            * Historial inmutable en la nube. Los registros eliminados permanecen guardados aquí permanentemente.
+        </p>
+        
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Fecha/Hora</th>
+                        <th>Acción</th>
+                        <th>Datos del Registro</th>
+                    </tr>
+                </thead>
+                <tbody id="tablaHistorial">
+                    <tr><td colspan="3" class="loading">Cargando historial...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-analytics.js";
+    import { 
+        getFirestore, 
+        collection, 
+        addDoc, 
+        updateDoc, 
+        deleteDoc, 
+        doc, 
+        onSnapshot, 
+        query, 
+        orderBy 
+    } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+
+    // Tu configuración proporcionada de Firebase
+    const firebaseConfig = {
+        apiKey: "AIzaSyDywyK8QHgutE6xX5Ccq7x_tYuzoGfD1XA",
+        authDomain: "clientres.firebaseapp.com",
+        projectId: "clientres",
+        storageBucket: "clientres.firebasestorage.app",
+        messagingSenderId: "440531150791",
+        appId: "1:440531150791:web:0a61fcc72c86c5b9d39be2",
+        measurementId: "G-Z8TQ30EK6F"
+    };
+
+    // Inicializar Firebase
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+    const db = getFirestore(app);
+
+    // Referencias a Colecciones en la Nube
+    const clientesRef = collection(db, "clientes");
+    const historialRef = collection(db, "historial");
+
+    // Variables de Estado Locales para Filtros Rápidos
+    let cacheClientes = [];
+
+    // --- ESCUCHADORES EN TIEMPO REAL (onSnapshot) ---
+
+    // Escuchar Clientes Activos
+    onSnapshot(clientesRef, (snapshot) => {
+        cacheClientes = [];
+        snapshot.forEach((doc) => {
+            cacheClientes.push({ id: doc.id, ...doc.data() });
+        });
+        // Ordenar alfabéticamente de manera local
+        cacheClientes.sort((a, b) => a.nombre.localeCompare(b.nombre));
+        document.getElementById('countGeneral').textContent = cacheClientes.length;
+        renderizarClientes(cacheClientes);
+    });
+
+    // Escuchar Historial ordenado por fecha descendente
+    const qHistorial = query(historialRef, orderBy("timestamp", "desc"));
+    onSnapshot(qHistorial, (snapshot) => {
+        const tbody = document.getElementById('tablaHistorial');
+        tbody.innerHTML = '';
+        document.getElementById('countHistorialBtn').textContent = snapshot.size;
+
+        if (snapshot.empty) {
+            tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#94a3b8; padding: 20px;">El historial está vacío.</td></tr>`;
+            return;
+        }
+
+        snapshot.forEach((doc) => {
+            const item = doc.data();
+            let badgeClass = item.accion === 'DELETE' ? 'badge-delete' : (item.accion === 'EDIT' ? 'badge-edit' : 'badge-create');
+            tbody.innerHTML += `<tr>
+                <td style="color:#64748b; font-size:0.85rem; white-space:nowrap;">${item.fecha}</td>
+                <td><span class="badge ${badgeClass}">${item.accion}</span></td>
+                <td>${item.detalle}</td>
+            </tr>`;
+        });
+    });
+
+    // --- OPERACIONES DE CLIENTES ---
+
+    // Enviar Formulario (Crear / Actualizar)
+    document.getElementById('clientForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const nombre = document.getElementById('nombre').value.trim();
+        const telefono = document.getElementById('telefono').value.trim();
+        const email = document.getElementById('email').value.trim();
+        const editId = document.getElementById('editId').value;
+        const fechaHora = new Date().toLocaleString();
+        
+        try {
+            if (editId === "") {
+                // AGREGAR EN FIRESTORE
+                await addDoc(clientesRef, { nombre, telefono, email });
+                await addDoc(historialRef, {
+                    fecha: fechaHora,
+                    timestamp: Date.now(),
+                    accion: 'CREATE',
+                    detalle: `Añadido: ${nombre} (${email})`
+                });
+            } else {
+                // BUSCAR ANTIGUO PARA EL LOG
+                const antiguo = cacheClientes.find(c => c.id === editId);
+                // ACTUALIZAR EN FIRESTORE
+                const docEspecifico = doc(db, "clientes", editId);
+                await updateDoc(docEspecifico, { nombre, telefono, email });
+                
+                await addDoc(historialRef, {
+                    fecha: fechaHora,
+                    timestamp: Date.now(),
+                    accion: 'EDIT',
+                    detalle: `Modificado: [${antiguo.nombre}] -> [${nombre}]`
+                });
+                cancelarEdicion();
+            }
+            document.getElementById('clientForm').reset();
+        } catch (error) {
+            console.error("Error procesando Firestore: ", error);
+            alert("Hubo un error al guardar los datos en la nube.");
+        }
+    });
+
+    // Eliminar Cliente
+    window.eliminarCliente = async function(id) {
+        if (confirm('¿Estás seguro de eliminar este cliente? Se guardará un respaldo permanente en el historial.')) {
+            const clienteEliminado = cacheClientes.find(c => c.id === id);
+            const fechaHora = new Date().toLocaleString();
+
+            try {
+                // Añadir al historial inmutable
+                await addDoc(historialRef, {
+                    fecha: fechaHora,
+                    timestamp: Date.now(),
+                    accion: 'DELETE',
+                    detalle: `RESPALDO ELIMINADO -> ${clienteEliminado.nombre} | Tel: ${clienteEliminado.telefono} | Correo: ${clienteEliminado.email}`
+                });
+
+                // Remover de clientes
+                await deleteDoc(doc(db, "clientes", id));
+
+                if (document.getElementById('editId').value === id) {
+                    cancelarEdicion();
+                }
+            } catch (error) {
+                console.error("Error eliminando documento: ", error);
+            }
+        }
+    }
+
+    // Cargar campos para modificar
+    window.prepararEdicion = function(id) {
+        const cliente = cacheClientes.find(c => c.id === id);
+        if(!cliente) return;
+
+        document.getElementById('nombre').value = cliente.nombre;
+        document.getElementById('telefono').value = cliente.telefono;
+        document.getElementById('email').value = cliente.email;
+        document.getElementById('editId').value = id;
+
+        document.getElementById('formTitle').textContent = "Modificar Cliente";
+        document.getElementById('btnSubmit').textContent = "Actualizar Datos";
+        document.getElementById('btnSubmit').className = "btn btn-warning btn-w-100";
+        document.getElementById('btnCancelar').style.display = "block";
+    }
+
+    // Renderizar filas de la base de datos
+    function renderizarClientes(lista) {
+        const tbody = document.getElementById('tablaClientes');
+        tbody.innerHTML = '';
+
+        if (lista.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#94a3b8; padding: 20px;">No hay clientes que coincidan.</td></tr>`;
+            return;
+        }
+
+        lista.forEach((cliente) => {
+            tbody.innerHTML += `<tr>
+                <td><strong>${cliente.nombre}</strong></td>
+                <td>${cliente.telefono}</td>
+                <td>${cliente.email}</td>
+                <td class="actions">
+                    <button class="btn-sm btn-edit" onclick="prepararEdicion('${cliente.id}')">Editar</button>
+                    <button class="btn-sm btn-delete" onclick="eliminarCliente('${cliente.id}')">Eliminar</button>
+                </td>
+            </tr>`;
+        });
+    }
+
+    // Buscador interactivo por filtros en caché local
+    document.getElementById('buscarInput').addEventListener('input', (e) => {
+        const busqueda = e.target.value.toLowerCase();
+        const filtrados = cacheClientes.filter(cliente => 
+            cliente.nombre.toLowerCase().includes(busqueda) || 
+            cliente.telefono.toLowerCase().includes(busqueda) || 
+            cliente.email.toLowerCase().includes(busqueda)
+        );
+        renderizarClientes(filtrados);
+    });
+</script>
+
+<script>
+    function cancelarEdicion() {
+        document.getElementById('editId').value = "";
+        document.getElementById('formTitle').textContent = "Registrar Nuevo Cliente";
+        document.getElementById('btnSubmit').textContent = "Guardar Cliente";
+        document.getElementById('btnSubmit').className = "btn btn-primary btn-w-100";
+        document.getElementById('btnCancelar').style.display = "none";
+        document.getElementById('clientForm').reset();
+    }
+
+    function abrirHistorial() { document.getElementById('modalHistorial').classList.add('active'); }
+    function cerrarHistorial() { document.getElementById('modalHistorial').classList.remove('active'); }
+    function cerrarHistorialExterno(e) { if(e.target === document.getElementById('modalHistorial')) cerrarHistorial(); }
+</script>
+</body>
+</html>
